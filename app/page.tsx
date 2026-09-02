@@ -15,10 +15,52 @@ type AlertItem = {
   read: boolean;
 };
 
-const initialAlerts: AlertItem[] = [
-  { id: 1, type: "hazard", severity: "CRITICAL", title: "Hazard Zone Alert", message: "Grandpa entered Construction Area", time: "2 min ago", read: false },
-  { id: 2, type: "safe", severity: "WARNING", title: "Left Safe Zone", message: "Grandpa left Home", time: "18 min ago", read: false },
+const initialAlerts: AlertItem[] = [];
+
+const SAFE_ZONE_CENTER: [number, number] = [1.344, 103.682];
+const SAFE_ZONE_RADIUS = 200;
+const HAZARD_ZONE_CENTER: [number, number] = [1.347, 103.687];
+const HAZARD_ZONE_RADIUS = 150;
+
+const walkingPath: [number, number][] = [
+  [1.344, 103.682],
+  [1.3443, 103.6825],
+  [1.3446, 103.683],
+  [1.345, 103.6835],
+  [1.3453, 103.684],
+  [1.3456, 103.6845],
+  [1.346, 103.685],
+  [1.3463, 103.6855],
+  [1.3466, 103.686],
+  [1.347, 103.687],
+  [1.3468, 103.6868],
+  [1.3465, 103.6865],
+  [1.346, 103.686],
+  [1.3455, 103.6855],
+  [1.345, 103.685],
+  [1.3446, 103.6845],
+  [1.3443, 103.684],
+  [1.344, 103.683],
 ];
+
+type ZoneStatus = { inSafeZone: boolean; inHazardZone: boolean };
+
+function haversineDistance(a: [number, number], b: [number, number]): number {
+  const R = 6371000;
+  const dLat = (b[0] - a[0]) * Math.PI / 180;
+  const dLng = (b[1] - a[1]) * Math.PI / 180;
+  const sinLat = Math.sin(dLat / 2);
+  const sinLng = Math.sin(dLng / 2);
+  const h = sinLat * sinLat + Math.cos(a[0] * Math.PI / 180) * Math.cos(b[0] * Math.PI / 180) * sinLng * sinLng;
+  return R * 2 * Math.atan2(Math.sqrt(h), Math.sqrt(1 - h));
+}
+
+function computeZoneStatus(pos: [number, number]): ZoneStatus {
+  return {
+    inSafeZone: haversineDistance(pos, SAFE_ZONE_CENTER) <= SAFE_ZONE_RADIUS,
+    inHazardZone: haversineDistance(pos, HAZARD_ZONE_CENTER) <= HAZARD_ZONE_RADIUS,
+  };
+}
 
 const Icon = ({ children, className = "" }: { children: string; className?: string }) => (
   <span className={`material-symbols-rounded select-none ${className}`} aria-hidden="true">{children}</span>
@@ -139,7 +181,7 @@ function QuickActions({ setTab, setDetail }: { setTab: (t: Tab) => void; setDeta
   );
 }
 
-function ZoneSummary({ setTab }: { setTab: (t: Tab) => void }) {
+function ZoneSummary({ setTab, zoneStatus }: { setTab: (t: Tab) => void; zoneStatus: ZoneStatus }) {
   return (
     <Card className="h-full">
       <div className="flex items-start justify-between">
@@ -147,15 +189,21 @@ function ZoneSummary({ setTab }: { setTab: (t: Tab) => void }) {
         <button onClick={() => setTab("settings")} className="text-xs font-bold text-[#3949AB] hover:underline">Manage</button>
       </div>
       <div className="mt-5 space-y-3">
-        <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-3"><div className="grid size-9 place-items-center rounded-lg bg-white text-emerald-600"><Icon>home</Icon></div><div className="flex-1"><p className="text-sm font-bold text-slate-800">Home</p><p className="text-xs text-slate-500">Safe zone · 200 m</p></div><span className="text-xs font-bold text-emerald-600">Inside</span></div>
-        <div className="flex items-center gap-3 rounded-xl bg-red-50 p-3"><div className="grid size-9 place-items-center rounded-lg bg-white text-red-600"><Icon>construction</Icon></div><div className="flex-1"><p className="text-sm font-bold text-slate-800">Construction Area</p><p className="text-xs text-slate-500">Hazard · 150 m</p></div><span className="text-xs font-bold text-slate-400">1.2 km</span></div>
+        <div className="flex items-center gap-3 rounded-xl bg-emerald-50 p-3"><div className="grid size-9 place-items-center rounded-lg bg-white text-emerald-600"><Icon>home</Icon></div><div className="flex-1"><p className="text-sm font-bold text-slate-800">Home</p><p className="text-xs text-slate-500">Safe zone · 200 m</p></div><span className={`text-xs font-bold ${zoneStatus.inSafeZone ? "text-emerald-600" : "text-slate-400"}`}>{zoneStatus.inSafeZone ? "Inside" : "Outside"}</span></div>
+        <div className="flex items-center gap-3 rounded-xl bg-red-50 p-3"><div className="grid size-9 place-items-center rounded-lg bg-white text-red-600"><Icon>construction</Icon></div><div className="flex-1"><p className="text-sm font-bold text-slate-800">Construction Area</p><p className="text-xs text-slate-500">Hazard · 150 m</p></div><span className={`text-xs font-bold ${zoneStatus.inHazardZone ? "text-red-600" : "text-slate-400"}`}>{zoneStatus.inHazardZone ? "Inside!" : "1.2 km"}</span></div>
       </div>
     </Card>
   );
 }
 
-function Home({ name, battery, alerts, setTab, setDetail }: { name: string; battery: number; alerts: AlertItem[]; setTab: (t: Tab) => void; setDetail: (d: Detail) => void }) {
+function Home({ name, battery, alerts, setTab, setDetail, wearerPos, zoneStatus }: { name: string; battery: number; alerts: AlertItem[]; setTab: (t: Tab) => void; setDetail: (d: Detail) => void; wearerPos: [number, number]; zoneStatus: ZoneStatus }) {
   const unread = alerts.filter(a => !a.read).length;
+  const statusText = zoneStatus.inHazardZone ? "in a hazard zone" : zoneStatus.inSafeZone ? "inside a safe zone" : "outside the safe zone";
+  const safetyLabel = zoneStatus.inHazardZone ? "Danger" : zoneStatus.inSafeZone ? "Safe" : "Warning";
+  const safetyColor = zoneStatus.inHazardZone ? "text-red-600" : zoneStatus.inSafeZone ? "text-emerald-600" : "text-amber-600";
+  const safetyBg = zoneStatus.inHazardZone ? "bg-red-50 text-red-600" : zoneStatus.inSafeZone ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600";
+  const safetyDot = zoneStatus.inHazardZone ? "bg-red-500" : zoneStatus.inSafeZone ? "bg-emerald-500" : "bg-amber-500";
+  const zoneLabel = zoneStatus.inHazardZone ? "Construction Area" : zoneStatus.inSafeZone ? "Home · 200 m" : "Outside safe zone";
   return (
     <>
       <Header title="Overview" action={
@@ -169,7 +217,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
       } />
       <div className="mx-auto max-w-[1500px] p-3.5 sm:p-6 lg:p-8">
         <div className="mb-7 hidden items-center justify-between gap-4 sm:flex">
-          <div><p className="text-sm font-medium text-slate-500">Good afternoon,</p><h2 className="text-2xl font-extrabold capitalize tracking-tight sm:text-3xl text-slate-900">{name}</h2><p className="mt-1 hidden text-sm text-slate-500 sm:block">Everything is connected and Grandpa is currently inside a safe zone.</p></div>
+          <div><p className="text-sm font-medium text-slate-500">Good afternoon,</p><h2 className="text-2xl font-extrabold capitalize tracking-tight sm:text-3xl text-slate-900">{name}</h2><p className="mt-1 hidden text-sm text-slate-500 sm:block">Everything is connected and Grandpa is currently {statusText}.</p></div>
           <div className="flex items-center gap-3"><div className="hidden text-right sm:block"><p className="text-xs font-bold text-slate-700">Administrator</p><p className="text-[11px] text-slate-400">SmartStep workspace</p></div><div className="grid size-12 place-items-center rounded-2xl border border-indigo-100 bg-white text-lg font-bold text-[#1A237E] shadow-sm sm:size-14">{name[0]?.toUpperCase()}</div></div>
         </div>
 
@@ -187,7 +235,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
           <div className="relative mt-5 grid grid-cols-3 divide-x divide-white/10 rounded-2xl border border-white/10 bg-white/10 py-3 backdrop-blur-sm">
             <div className="px-3"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">Wearer</p><p className="mt-1 truncate text-sm font-extrabold">Grandpa</p></div>
             <div className="px-3"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">Battery</p><p className="mt-1 text-sm font-extrabold">{battery}%</p></div>
-            <div className="px-3"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">Status</p><p className="mt-1 flex items-center gap-1 text-sm font-extrabold text-emerald-300"><Icon className="text-sm">verified</Icon>Safe</p></div>
+            <div className="px-3"><p className="text-[9px] font-bold uppercase tracking-wider text-indigo-200">Status</p><p className={`mt-1 flex items-center gap-1 text-sm font-extrabold ${zoneStatus.inHazardZone ? "text-red-300" : zoneStatus.inSafeZone ? "text-emerald-300" : "text-amber-300"}`}><Icon className="text-sm">verified</Icon>{safetyLabel}</p></div>
           </div>
         </section>
 
@@ -215,10 +263,10 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
           <Card className="col-span-1 hidden min-h-[176px] sm:block">
             <div className="flex h-full flex-col justify-between gap-5">
               <div className="flex items-start gap-3">
-              <div className="grid size-12 place-items-center rounded-2xl bg-emerald-50 text-emerald-600"><Icon>shield</Icon></div>
-              <div className="flex-1"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Safety status</p><p className="text-xl font-extrabold text-emerald-600">Safe</p><p className="text-xs text-slate-400">User is inside Safe Zone</p></div><span className="live-dot mt-2 size-2 rounded-full bg-emerald-500" />
+              <div className={`grid size-12 place-items-center rounded-2xl ${safetyBg}`}><Icon>shield</Icon></div>
+              <div className="flex-1"><p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Safety status</p><p className={`text-xl font-extrabold ${safetyColor}`}>{safetyLabel}</p><p className="text-xs text-slate-400">{zoneStatus.inHazardZone ? "User is in hazard zone" : zoneStatus.inSafeZone ? "User is inside Safe Zone" : "User is outside Safe Zone"}</p></div><span className={`live-dot mt-2 size-2 rounded-full ${safetyDot}`} />
               </div>
-              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span className="text-slate-500">Current zone</span><span className="font-bold text-slate-700">Home · 200 m</span></div>
+              <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs"><span className="text-slate-500">Current zone</span><span className="font-bold text-slate-700">{zoneLabel}</span></div>
             </div>
           </Card>
 
@@ -233,7 +281,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
               <p className="text-[11px] font-extrabold uppercase tracking-[.15em] text-slate-400">Current location</p>
               <div className="mt-3 flex items-center gap-3">
                 <div className="grid size-10 place-items-center rounded-xl bg-indigo-50 text-[#1A237E]"><Icon>location_on</Icon></div>
-                <div><p className="text-sm font-semibold text-slate-800">1.3440, 103.6820</p><p className="text-xs text-slate-400">Accuracy: 5.4 m · Speed: 1.2 m/s</p></div>
+                <div><p className="text-sm font-semibold text-slate-800">{wearerPos[0].toFixed(5)}, {wearerPos[1].toFixed(5)}</p><p className="text-xs text-slate-400">Accuracy: 5.4 m · Speed: 1.2 m/s</p></div>
               </div>
             </div>
             <button className="mt-6 flex w-full items-center justify-center gap-2 rounded-xl border border-indigo-100 py-2.5 text-sm font-bold text-[#1A237E] bg-indigo-50 hover:bg-indigo-100 transition">
@@ -245,7 +293,7 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
           
           <div className="col-span-1 md:col-span-2 lg:col-span-3 grid grid-cols-1 md:grid-cols-2 gap-4 xl:gap-6">
             <QuickActions setTab={setTab} setDetail={setDetail} />
-            <ZoneSummary setTab={setTab} />
+            <ZoneSummary setTab={setTab} zoneStatus={zoneStatus} />
           </div>
 
         </div>
@@ -254,21 +302,27 @@ function Home({ name, battery, alerts, setTab, setDetail }: { name: string; batt
   );
 }
 
-function MapPage({ onBack, battery }: { onBack: () => void; battery: number }) {
+function MapPage({ onBack, battery, wearerPos, routeHistory, zoneStatus }: {
+  onBack: () => void;
+  battery: number;
+  wearerPos: [number, number];
+  routeHistory: [number, number][];
+  zoneStatus: ZoneStatus;
+}) {
   const [history, setHistory] = useState(false);
   const [filter, setFilter] = useState("1h");
   const mapElement = useRef<HTMLDivElement>(null);
   const wearerMarker = useRef<import("leaflet").Marker | null>(null);
-  
+  const polylineRef = useRef<import("leaflet").Polyline | null>(null);
+  const mapRef = useRef<import("leaflet").Map | null>(null);
+
   useEffect(() => {
     if (!mapElement.current) return;
     let disposed = false;
-    let mapInstance: import("leaflet").Map | undefined;
-    
+
     void import("leaflet").then(L => {
       if (disposed || !mapElement.current) return;
-      
-      // 添加基础 CSS 支持（避免无外链 CSS 时样式错乱）
+
       if (!document.getElementById("leaflet-css")) {
         const link = document.createElement("link");
         link.id = "leaflet-css";
@@ -277,53 +331,80 @@ function MapPage({ onBack, battery }: { onBack: () => void; battery: number }) {
         document.head.appendChild(link);
       }
 
-      const current: [number, number] = [1.344, 103.682];
-      mapInstance = L.map(mapElement.current, {
+      mapRef.current = L.map(mapElement.current, {
         zoomControl: false,
         zoomAnimation: false,
         fadeAnimation: false,
         markerZoomAnimation: false,
-      }).setView(current, 15);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(mapInstance);
-      L.control.zoom({ position: "bottomright" }).addTo(mapInstance);
-      
-      L.circle([1.344, 103.682], { radius: 200, color: "#10b981", fillColor: "#34d399", fillOpacity: .13, weight: 2 }).bindPopup("<strong>Home Safe Zone</strong><br>200 m radius").addTo(mapInstance);
-      L.circle([1.347, 103.687], { radius: 150, color: "#ef4444", fillColor: "#f87171", fillOpacity: .14, weight: 2 }).bindPopup("<strong>Construction Area</strong><br>High-risk zone").addTo(mapInstance);
-      L.polyline([[1.3428,103.6805],[1.3432,103.6811],[1.344,103.682],[1.3448,103.6832],[1.3454,103.684]], { color: "#3949ab", weight: 4, opacity: .75, dashArray: "8 8" }).addTo(mapInstance);
-      
-      // Marker 图标自定义
-      const personIcon = L.divIcon({ 
-        className: "bg-transparent border-0", 
-        html: `<div class="bg-white border-2 border-[#1A237E] rounded-full p-1 shadow-lg text-center flex flex-col items-center justify-center size-12 text-[#1A237E]"><span class="material-symbols-rounded text-xl">directions_walk</span><span data-wearer-battery class="text-[10px] font-bold block leading-none">${battery}%</span></div>`, 
-        iconSize: [48, 48], 
-        iconAnchor: [24, 24] 
+      }).setView(wearerPos, 16);
+
+      const map = mapRef.current;
+      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "© OpenStreetMap" }).addTo(map);
+      L.control.zoom({ position: "bottomright" }).addTo(map);
+
+      L.circle(SAFE_ZONE_CENTER, { radius: SAFE_ZONE_RADIUS, color: "#10b981", fillColor: "#34d399", fillOpacity: .13, weight: 2 }).bindPopup("<strong>Home Safe Zone</strong><br>200 m radius").addTo(map);
+      L.circle(HAZARD_ZONE_CENTER, { radius: HAZARD_ZONE_RADIUS, color: "#ef4444", fillColor: "#f87171", fillOpacity: .14, weight: 2 }).bindPopup("<strong>Construction Area</strong><br>High-risk zone").addTo(map);
+
+      polylineRef.current = L.polyline(routeHistory, { color: "#3949ab", weight: 4, opacity: .75, dashArray: "8 8" }).addTo(map);
+
+      const personIcon = L.divIcon({
+        className: "bg-transparent border-0",
+        html: `<div class="bg-white border-2 border-[#1A237E] rounded-full p-1 shadow-lg text-center flex flex-col items-center justify-center size-12 text-[#1A237E]"><span class="material-symbols-rounded text-xl">directions_walk</span><span data-wearer-battery class="text-[10px] font-bold block leading-none">${battery}%</span></div>`,
+        iconSize: [48, 48],
+        iconAnchor: [24, 24],
       });
-      wearerMarker.current = L.marker(current, { icon: personIcon })
+      wearerMarker.current = L.marker(wearerPos, { icon: personIcon })
         .bindPopup(`<strong>Grandpa</strong><br>Battery ${battery}%<br>Accuracy 5.4 m`)
-        .addTo(mapInstance);
+        .addTo(map);
     });
-    
-    // 清理函数优化
-    return () => { 
-      disposed = true; 
+
+    return () => {
+      disposed = true;
       wearerMarker.current = null;
-      if (mapInstance) {
-        mapInstance.stop();
-        mapInstance.closePopup();
-        mapInstance.off();
-        mapInstance.remove();
+      polylineRef.current = null;
+      if (mapRef.current) {
+        mapRef.current.stop();
+        mapRef.current.closePopup();
+        mapRef.current.off();
+        mapRef.current.remove();
+        mapRef.current = null;
       }
     };
-    // The Leaflet instance must only be created once for this mounted page.
-    // Battery changes are applied by the lightweight effect below.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  useEffect(() => {
+    if (wearerMarker.current && mapRef.current) {
+      wearerMarker.current.setLatLng(wearerPos);
+      mapRef.current.panTo(wearerPos, { animate: true });
+    }
+  }, [wearerPos]);
+
+  useEffect(() => {
+    if (polylineRef.current) {
+      polylineRef.current.setLatLngs(routeHistory);
+    }
+  }, [routeHistory]);
+
+  useEffect(() => {
+    if (polylineRef.current && mapRef.current) {
+      if (history) {
+        polylineRef.current.addTo(mapRef.current);
+      } else {
+        mapRef.current.removeLayer(polylineRef.current);
+      }
+    }
+  }, [history]);
 
   useEffect(() => {
     wearerMarker.current?.setPopupContent(`<strong>Grandpa</strong><br>Battery ${battery}%<br>Accuracy 5.4 m`);
     const batteryLabel = mapElement.current?.querySelector<HTMLElement>("[data-wearer-battery]");
     if (batteryLabel) batteryLabel.textContent = `${battery}%`;
   }, [battery]);
+
+  const statusText = zoneStatus.inHazardZone ? "Danger" : zoneStatus.inSafeZone ? "Safe" : "Warning";
+  const statusClass = zoneStatus.inHazardZone ? "bg-red-50 text-red-600" : zoneStatus.inSafeZone ? "bg-emerald-50 text-emerald-600" : "bg-amber-50 text-amber-600";
+  const posStr = `${wearerPos[0].toFixed(5)}, ${wearerPos[1].toFixed(5)}`;
 
   return (
     <div className="flex flex-col h-dvh bg-[#e9edf2]">
@@ -336,17 +417,17 @@ function MapPage({ onBack, battery }: { onBack: () => void; battery: number }) {
       )}
       <div className="relative flex-1">
         <div ref={mapElement} className="absolute inset-0 z-0" aria-label="Live location map" />
-        
+
         <div className="pointer-events-none absolute left-4 top-4 z-[500] grid gap-2 sm:left-6 sm:top-6 sm:grid-cols-3">
           <div className="flex items-center gap-2 bg-white/95 backdrop-blur shadow-sm rounded-xl py-2 px-3 border border-slate-200/50"><Icon className="text-emerald-600">person_pin_circle</Icon><div className="flex flex-col leading-tight"><small className="text-[10px] text-slate-400 font-bold uppercase">Wearer</small><strong className="text-xs text-slate-700">Grandpa</strong></div></div>
           <div className="flex items-center gap-2 bg-white/95 backdrop-blur shadow-sm rounded-xl py-2 px-3 border border-slate-200/50"><Icon className="text-[#3949AB]">battery_6_bar</Icon><div className="flex flex-col leading-tight"><small className="text-[10px] text-slate-400 font-bold uppercase">Battery</small><strong className="text-xs text-slate-700">{battery}% · Good</strong></div></div>
         </div>
-        
+
         <div className="absolute bottom-5 left-4 right-4 z-[500] rounded-2xl border border-white/60 bg-white/95 p-4 shadow-2xl backdrop-blur sm:left-6 sm:right-auto sm:w-[380px]">
           <div className="flex items-center gap-3">
             <div className="grid size-11 place-items-center rounded-xl bg-indigo-50 text-[#1A237E]"><Icon>location_on</Icon></div>
-            <div className="min-w-0 flex-1"><p className="font-extrabold text-slate-800">Grandpa&apos;s current location</p><p className="truncate text-xs text-slate-500">Nanyang Avenue, Singapore · 1.34400, 103.68200</p></div>
-            <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-600">Safe</span>
+            <div className="min-w-0 flex-1"><p className="font-extrabold text-slate-800">Grandpa&apos;s current location</p><p className="truncate text-xs text-slate-500">Nanyang Avenue, Singapore · {posStr}</p></div>
+            <span className={`rounded-full px-3 py-1 text-xs font-bold ${statusClass}`}>{statusText}</span>
           </div>
         </div>
       </div>
@@ -643,10 +724,15 @@ export default function SmartStepApp() {
   const [battery, setBattery] = useState(78);
   const [alerts, setAlerts] = useState(initialAlerts);
   const [navCollapsed, setNavCollapsed] = useState(false);
-  
-  const name = useMemo(() => email.split("@")[0] || "demo", [email]);
+  const [wearerPos, setWearerPos] = useState<[number, number]>(walkingPath[0]);
+  const [routeHistory, setRouteHistory] = useState<[number, number][]>([walkingPath[0]]);
+  const pathIndex = useRef(0);
+  const prevZone = useRef<ZoneStatus>({ inSafeZone: true, inHazardZone: false });
+  const alertId = useRef(0);
 
-  // Register the installable mobile web app shell.
+  const name = useMemo(() => email.split("@")[0] || "demo", [email]);
+  const zoneStatus = useMemo(() => computeZoneStatus(wearerPos), [wearerPos]);
+
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     const register = () => { void navigator.serviceWorker.register("/sw.js"); };
@@ -654,51 +740,97 @@ export default function SmartStepApp() {
     if (document.readyState === "complete") register();
     return () => window.removeEventListener("load", register);
   }, []);
-  
-  // 模拟电池消耗
-  useEffect(() => { 
-    if (!loggedIn) return; 
-    const id = window.setInterval(() => setBattery(v => v <= 10 ? 95 : v - 1), 5000); 
-    return () => window.clearInterval(id); 
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    const id = window.setInterval(() => {
+      pathIndex.current = (pathIndex.current + 1) % walkingPath.length;
+      const next = walkingPath[pathIndex.current];
+      setWearerPos(next);
+      setRouteHistory(prev => [...prev.slice(-80), next]);
+    }, 2000);
+    return () => window.clearInterval(id);
   }, [loggedIn]);
-  
-  // 屏幕缩小自动折叠侧边栏
-  useEffect(() => { 
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    const prev = prevZone.current;
+    const now = zoneStatus;
+    const newAlerts: AlertItem[] = [];
+
+    if (now.inHazardZone && !prev.inHazardZone) {
+      newAlerts.push({
+        id: ++alertId.current,
+        type: "hazard",
+        severity: "CRITICAL",
+        title: "Hazard Zone Alert",
+        message: "Grandpa entered Construction Area",
+        time: "just now",
+        read: false,
+      });
+    }
+    if (!now.inSafeZone && prev.inSafeZone) {
+      newAlerts.push({
+        id: ++alertId.current,
+        type: "safe",
+        severity: "WARNING",
+        title: "Left Safe Zone",
+        message: "Grandpa left Home safe zone",
+        time: "just now",
+        read: false,
+      });
+    }
+    if (now.inSafeZone && !prev.inSafeZone) {
+      newAlerts.push({
+        id: ++alertId.current,
+        type: "safe",
+        severity: "WARNING",
+        title: "Returned to Safe Zone",
+        message: "Grandpa is back in Home safe zone",
+        time: "just now",
+        read: false,
+      });
+    }
+
+    if (newAlerts.length > 0) {
+      setAlerts(prev => [...newAlerts, ...prev].slice(0, 20));
+    }
+    prevZone.current = now;
+  }, [wearerPos, loggedIn, zoneStatus]);
+
+  useEffect(() => {
+    if (!loggedIn) return;
+    const id = window.setInterval(() => setBattery(v => v <= 10 ? 95 : v - 1), 5000);
+    return () => window.clearInterval(id);
+  }, [loggedIn]);
+
+  useEffect(() => {
     const handleResize = () => { if (window.innerWidth < 1024) setNavCollapsed(true); };
-    handleResize(); // 初始检查
+    handleResize();
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
   if (!loggedIn) return <Login onLogin={value => { setEmail(value); setLoggedIn(true); }} />;
-  
+
   const unread = alerts.filter(a => !a.read).length;
 
   return (
-    // 移动端预留底部导航高度 pb-[68px]
     <main className="min-h-dvh bg-[#F0F2F5] pb-[68px] md:pb-0">
-      
-      {/* 桌面侧边栏：移动端隐藏 */}
       <div className="hidden md:block">
-        <SideNav 
-          tab={tab} setTab={setTab} unread={unread} name={name} 
-          collapsed={navCollapsed} onToggle={() => setNavCollapsed(v=>!v)} 
-          onLogout={() => { setLoggedIn(false); setTab("home"); }} 
+        <SideNav
+          tab={tab} setTab={setTab} unread={unread} name={name}
+          collapsed={navCollapsed} onToggle={() => setNavCollapsed(v=>!v)}
+          onLogout={() => { setLoggedIn(false); setTab("home"); }}
         />
       </div>
-      
-      {/* 移动端底部导航：桌面端隐藏 */}
       <BottomNav tab={tab} setTab={setTab} unread={unread} />
-
-      {/* 主内容区域，根据侧边栏状态调整左边距 */}
       <div className={`min-h-dvh transition-[margin] duration-300 ${navCollapsed ? "md:ml-[76px]" : "md:ml-64"}`}>
-        {tab === "home" && <Home name={name} battery={battery} alerts={alerts} setTab={setTab} setDetail={setDetail} />}
-        {tab === "map" && <MapPage onBack={() => setTab("home")} battery={battery} />}
+        {tab === "home" && <Home name={name} battery={battery} alerts={alerts} setTab={setTab} setDetail={setDetail} wearerPos={wearerPos} zoneStatus={zoneStatus} />}
+        {tab === "map" && <MapPage onBack={() => setTab("home")} battery={battery} wearerPos={wearerPos} routeHistory={routeHistory} zoneStatus={zoneStatus} />}
         {tab === "alerts" && <Alerts alerts={alerts} setAlerts={setAlerts} />}
         {tab === "settings" && <Settings name={name} email={email} setDetail={setDetail} onLogout={() => { setLoggedIn(false); setTab("home"); }} />}
       </div>
-
-      {/* 详情浮层 */}
       {detail && <DetailPage detail={detail} battery={battery} onClose={() => setDetail(null)} setDetail={setDetail} />}
     </main>
   );
