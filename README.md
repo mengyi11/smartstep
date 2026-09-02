@@ -1,100 +1,130 @@
-# vinext-starter
+# SmartStep
 
-A clean full-stack starter running on
-[vinext](https://github.com/cloudflare/vinext), with optional Cloudflare D1 and
-Drizzle support.
+SmartStep is a responsive safety-footwear monitoring dashboard developed for
+the **EE3180 Design and Innovation Project**. It provides a clear interface for
+caregivers to monitor a wearer's live location, smart-shoe battery condition,
+safety zones, alerts, movement activity, and device connectivity.
 
-## Prerequisites
+The current release is a front-end prototype with realistic simulated data. It
+is also configured as an installable Progressive Web App (PWA) for Android and
+iOS home screens.
+
+## Features
+
+- Responsive dashboard for desktop, tablet, and mobile screens
+- Live OpenStreetMap display with wearer marker and battery information
+- Safe-zone and hazardous-zone visualization
+- Battery level, voltage, temperature, and remaining-time estimates
+- Critical, warning, and read/unread alert management
+- Device connection and Bluetooth signal status
+- Movement activity summary and CSV report export
+- Collapsible desktop navigation and mobile bottom navigation
+- Login/logout demonstration flow
+- Installable PWA with application icon and basic offline caching
+
+## Technology stack
+
+| Layer | Technology |
+| --- | --- |
+| UI | React 19, TypeScript, Tailwind CSS |
+| Application framework | vinext / Vite |
+| Maps | Leaflet and OpenStreetMap |
+| PWA | Web App Manifest and Service Worker |
+| Optional data layer | Drizzle ORM and Cloudflare D1 |
+| Deployment target | Cloudflare-compatible vinext runtime |
+
+## System architecture
+
+The recommended production architecture combines Bluetooth for local hardware
+communication with a cloud backend for remote monitoring.
+
+```mermaid
+flowchart LR
+  Shoe["Smart shoe / ESP32"] -->|Bluetooth Low Energy| Phone["Wearer's mobile app"]
+  Phone -->|HTTPS or MQTT| API["Cloud API"]
+  API --> DB["Database"]
+  API --> Dashboard["Caregiver web dashboard / PWA"]
+```
+
+For the lowest-cost implementation, the shoe can send battery and sensor data
+to the wearer's phone using BLE. The phone supplies GPS location and uploads
+the combined data to a managed backend such as Supabase. This avoids adding an
+expensive GPS and cellular modem to the shoe while still enabling remote access.
+
+## Getting started
+
+### Requirements
 
 - Node.js `>=22.13.0`
+- npm
 
-## Quick Start
+### Run locally
 
 ```bash
+git clone git@github.com:mengyi11/dip_smartstep.git
+cd dip_smartstep
 npm install
 npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000). The current prototype is
+in demo mode, so the pre-filled credentials can be used to enter the dashboard.
+
+### Verify a production build
+
+```bash
 npm run build
 ```
 
-This starter does not use `wrangler.jsonc`.
+## Mobile installation
 
-## Included Shape
+The PWA configuration is documented in [`mobile-app/README.md`](mobile-app/README.md).
+Installation requires an HTTPS deployment, except during localhost development.
 
-- edit site code under `app/`
-- `.openai/hosting.json` declares optional Sites D1 and R2 bindings
-- `vite.config.ts` simulates declared bindings for local development
-- `db/schema.ts` starts intentionally empty
-- `examples/d1/` contains an optional D1 example surface
-- `drizzle.config.ts` supports local migration generation when needed
+### Android
 
-## Workspace Auth Headers
+1. Open the deployed website in Chrome.
+2. Select **Install app** or **Add to Home screen** from the browser menu.
+3. Confirm installation.
 
-Signed-in visitors receive both `oai-authenticated-user-id` and `oai-authenticated-user-email`. Private Sites require every visitor to sign in; public Sites may also have anonymous visitors, for whom neither header is present.
+### iPhone
 
-The user ID is stable for the same user on the same Site and different across Sites. Email and name are intended for display or contact purposes.
+1. Open the deployed website in Safari.
+2. Tap **Share**.
+3. Select **Add to Home Screen**, then tap **Add**.
 
-SIWC-authenticated workspace sites may also receive
-`oai-authenticated-user-full-name` when the user's SIWC profile has a non-empty
-`name` claim. The full-name value is percent-encoded UTF-8 and is accompanied by
-`oai-authenticated-user-full-name-encoding: percent-encoded-utf-8`.
+The PWA supports both platforms from the same codebase. A future Capacitor
+wrapper can produce a signed Android APK and iOS application when stronger
+background Bluetooth support or app-store distribution is required.
 
-Treat the full name as optional and fall back to email when it is absent:
+## Project structure
 
-```tsx
-import { headers } from "next/headers";
-
-export default async function Home() {
-  const requestHeaders = await headers();
-  const userId = requestHeaders.get("oai-authenticated-user-id");
-  const email = requestHeaders.get("oai-authenticated-user-email");
-  const encodedFullName = requestHeaders.get("oai-authenticated-user-full-name");
-  const fullName =
-    encodedFullName &&
-    requestHeaders.get("oai-authenticated-user-full-name-encoding") ===
-      "percent-encoded-utf-8"
-      ? decodeURIComponent(encodedFullName)
-      : null;
-
-  const displayName = fullName ?? email;
-  // ...
-}
+```text
+app/                    React pages, components, and global styles
+public/mobile-app/      PWA manifest and application icon
+public/sw.js            Offline service worker
+mobile-app/             Mobile installation documentation
+db/                     Optional database schema and client
+worker/                 Cloudflare worker entry point
+tests/                  Build/render verification
 ```
 
-## Optional Dispatch-Owned ChatGPT Sign-In
+## Current prototype limitations
 
-Import the ready-to-use helpers from `app/chatgpt-auth.ts` when the site needs
-optional or required ChatGPT sign-in:
+- Location, battery, activity, and alerts currently use simulated data.
+- Login is a demonstration interface and is not connected to production auth.
+- Bluetooth communication with ESP32 hardware is not implemented yet.
+- Remote monitoring requires a deployed backend and database.
 
-- Use `getChatGPTUser()` for optional signed-in UI.
-- Use `requireChatGPTUser(returnTo)` for server-rendered pages that should send
-  anonymous visitors through Sign in with ChatGPT.
-- Use `chatGPTSignInPath(returnTo)` and `chatGPTSignOutPath(returnTo)` for
-  browser links or actions.
-- Pass a same-origin relative `returnTo` path for the destination after sign-in
-  or sign-out. The helper validates and safely encodes it.
-- Mark protected pages with `export const dynamic = "force-dynamic"` because
-  they depend on per-request identity headers.
+## Recommended next steps
 
-Dispatch owns `/signin-with-chatgpt`, `/signout-with-chatgpt`, `/callback`, the
-OAuth cookies, and identity header injection. Do not implement app routes for
-those reserved paths. Routes that do not import and call the helper remain
-anonymous-compatible.
+1. Connect authentication and realtime storage using Supabase or a custom API.
+2. Define the ESP32 BLE service and characteristic data format.
+3. Add a Capacitor mobile wrapper and a native BLE plugin.
+4. Replace simulated dashboard data with realtime subscriptions.
+5. Add push notifications, audit history, and access-control policies.
 
-SIWC establishes identity only; it does not prove workspace membership. Use the
-Sites hosting platform's access policy controls for workspace-wide restrictions,
-or enforce explicit server-side membership or allowlist checks.
+## License
 
-Use SIWC for account pages, user-specific dashboards, saved records, and write
-actions tied to the current ChatGPT user. Leave public content anonymous.
-
-## Useful Commands
-
-- `npm run dev`: start local development
-- `npm run build`: verify the vinext build output
-- `npm test`: build the starter and verify its rendered loading skeleton
-- `npm run db:generate`: generate Drizzle migrations after schema changes
-
-## Learn More
-
-- [vinext Documentation](https://github.com/cloudflare/vinext)
-- [Drizzle D1 Guide](https://orm.drizzle.team/docs/get-started/d1-new)
+This repository is currently intended for academic project development. Add an
+open-source license before distributing or reusing it outside the project team.

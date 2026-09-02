@@ -1,0 +1,21 @@
+{
+  "name": "SmartStep Safety Monitoring",
+  "short_name": "SmartStep",
+  "description": "Real-time smart footwear location, battery and safety monitoring.",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f0f2f5",
+  "theme_color": "#111858",
+  "categories": ["health", "lifestyle", "utilities"],
+  "icons": [
+    {
+      "src": "/mobile-app/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

@@ -645,6 +645,15 @@ export default function SmartStepApp() {
   const [navCollapsed, setNavCollapsed] = useState(false);
   
   const name = useMemo(() => email.split("@")[0] || "demo", [email]);
+
+  // Register the installable mobile web app shell.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    const register = () => { void navigator.serviceWorker.register("/sw.js"); };
+    window.addEventListener("load", register);
+    if (document.readyState === "complete") register();
+    return () => window.removeEventListener("load", register);
+  }, []);
   
   // 模拟电池消耗
   useEffect(() => { 
