@@ -648,6 +648,7 @@ export default function SmartStepApp() {
 
   // Register the installable mobile web app shell.
   useEffect(() => {
+    if (import.meta.env.VITE_DISABLE_SERVICE_WORKER === "true") return;
     if (!("serviceWorker" in navigator)) return;
     const register = () => { void navigator.serviceWorker.register("/sw.js"); };
     window.addEventListener("load", register);
