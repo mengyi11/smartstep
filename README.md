@@ -67,7 +67,7 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000). The current prototype is
+Open [http://localhost:3001](http://localhost:3001). Ports 3000 (frontend) and 8000 (FastAPI) are reserved for MailPilot. SmartStep's Vinext/Cloudflare Worker server runs with the frontend on port 3001; there is no separate API server on port 8000. The current prototype is
 in demo mode, so the pre-filled credentials can be used to enter the dashboard.
 
 ### Verify a production build
